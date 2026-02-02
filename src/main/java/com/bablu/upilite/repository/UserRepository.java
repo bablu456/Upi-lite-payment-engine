@@ -12,5 +12,5 @@ public interface UserRepository  extends JpaRepository<User, UUID> {
 
     // to check duplicate user
     boolean existsByEmail(String email);
-    boolean existByUsername(String username);
+    boolean existsByUsername(String username);
 }
