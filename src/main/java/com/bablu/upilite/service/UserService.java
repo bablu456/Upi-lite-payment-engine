@@ -30,7 +30,7 @@ public class UserService {
 
         Wallet wallet = Wallet.builder()
                 .user(user)
-                .balance(BigDecimal.ZERO)
+                .balance(new BigDecimal(1000))
                 .upiId(dto.getUsername())
                 .upiId(dto.getUsername() + "@upi")
                 .build();

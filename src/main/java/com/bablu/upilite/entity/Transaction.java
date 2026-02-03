@@ -26,8 +26,11 @@ public class Transaction {
     @Column(nullable = false)
     private BigDecimal amount;
 
+    @Column(nullable = false)
+    private UUID receiverId;
+
     @Enumerated(EnumType.STRING)
-    private TransactionStatus status;
+    private PaymentStatus status;
 
     @CreationTimestamp
     private LocalDateTime timestamp;

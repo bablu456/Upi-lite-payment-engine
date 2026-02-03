@@ -1,7 +1,6 @@
 package com.bablu.upilite.repository;
 
 import com.bablu.upilite.entity.Transaction;
-import com.bablu.upilite.entity.TransactionStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.List;

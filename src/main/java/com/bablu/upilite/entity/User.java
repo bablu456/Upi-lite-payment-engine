@@ -1,5 +1,6 @@
 package com.bablu.upilite.entity;
 
+import com.fasterxml.jackson.annotation.JsonManagedReference;
 import jakarta.persistence.*;
 import lombok.*;
 import java.util.UUID;
@@ -24,5 +25,6 @@ public class User {
     private String password;
 
     @OneToOne(mappedBy = "user", cascade = CascadeType.ALL)
+    @JsonManagedReference
     private Wallet wallet;
 }

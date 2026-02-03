@@ -1,5 +1,5 @@
 package com.bablu.upilite.entity;
 
-public enum TransactionStatus {
+public enum PaymentStatus {
     SUCCESS, FAILED, PENDING, REFUNDED
 }
