@@ -4,6 +4,8 @@ import com.bablu.upilite.dto.TransferRequestDto;
 import com.bablu.upilite.entity.Transaction;
 import com.bablu.upilite.entity.PaymentStatus;
 import com.bablu.upilite.entity.Wallet;
+import com.bablu.upilite.exception.InsufficientBalanceException;
+import com.bablu.upilite.exception.UserNotFoundException;
 import com.bablu.upilite.repository.TransactionRepository;
 import com.bablu.upilite.repository.WalletRepository;
 import lombok.RequiredArgsConstructor;
@@ -22,14 +24,14 @@ public class TransactionService {
     public Transaction transferMoney(TransferRequestDto request) {
 
         Wallet senderWallet = walletRepository.findById(request.getSenderId())
-                .orElseThrow(() -> new RuntimeException("Sender wallet not found"));
+                .orElseThrow(() -> new UserNotFoundException("Sender wallet not found"));
 
         Wallet receiverWallet = walletRepository.findByUpiId(request.getReceiverUpiId())
-                .orElseThrow(() -> new RuntimeException("Receiver not found with UPI ID: " + request.getReceiverUpiId()));
+                .orElseThrow(() -> new UserNotFoundException("Receiver not found with UPI ID: " + request.getReceiverUpiId()));
 
         // 3. Validation: Check Balance
         if (senderWallet.getBalance().compareTo(request.getAmount()) < 0) {
-            throw new RuntimeException("Insufficient Balance! Transfer failed.");
+            throw new InsufficientBalanceException("Insufficient Balance! Transfer failed.");
         }
 
         // 4. Perform Transfer (Update Balances)
