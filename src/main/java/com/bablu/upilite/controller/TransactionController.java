@@ -6,10 +6,10 @@ import com.bablu.upilite.entity.Transaction;
 import com.bablu.upilite.service.TransactionService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/transactions")
@@ -25,5 +25,11 @@ public class TransactionController {
         }catch (RuntimeException e){
             return ResponseEntity.badRequest().body(e.getMessage());
         }
+    }
+
+    @GetMapping("/history/{userId}")
+    public ResponseEntity<List<Transaction>>  getTransactionHistory(@PathVariable UUID userId){
+        List<Transaction> history = transactionService.getTransactionHistory(userId);
+        return ResponseEntity.ok(history);
     }
 }

@@ -8,4 +8,5 @@ import java.util.UUID;
 
 public interface TransactionRepository extends JpaRepository<Transaction, UUID> {
     List<Transaction> findBySenderIdOrReceiverId(UUID senderId, UUID receivedId);
+
 }
