@@ -18,14 +18,12 @@ public class TransactionService {
     private final WalletRepository walletRepository;
     private final TransactionRepository transactionRepository;
 
-    @Transactional // 🔥 The Shield: Either everything happens, or nothing happens.
+    @Transactional //  The Shield: Either everything happens, or nothing happens.
     public Transaction transferMoney(TransferRequestDto request) {
 
-        // 1. Fetch Sender Wallet
         Wallet senderWallet = walletRepository.findById(request.getSenderId())
                 .orElseThrow(() -> new RuntimeException("Sender wallet not found"));
 
-        // 2. Fetch Receiver Wallet using UPI ID
         Wallet receiverWallet = walletRepository.findByUpiId(request.getReceiverUpiId())
                 .orElseThrow(() -> new RuntimeException("Receiver not found with UPI ID: " + request.getReceiverUpiId()));
 
