@@ -12,6 +12,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+
 import java.util.List;
 import java.util.UUID;
 
@@ -22,6 +23,7 @@ public class TransactionService {
 
     private final WalletRepository walletRepository;
     private final TransactionRepository transactionRepository;
+    private final NotificationProducer notificationProducer; // ✅ Add this
 
     @Transactional //  The Shield: Either everything happens, or nothing happens.
     public Transaction transferMoney(TransferRequestDto request) {
@@ -53,7 +55,15 @@ public class TransactionService {
                 .status(PaymentStatus.SUCCESS)
                 .build();
 
-        return transactionRepository.save(transaction);
+        Transaction savedTransaction = transactionRepository.save(transaction);
+
+        // 🚀 KAFKA TRIGGER (Async Notification)
+        String message = "Payment Successful! Amount: " + request.getAmount() +
+                " sent to " + request.getReceiverUpiId();
+
+        notificationProducer.sendNotification(message); // <-- Ye nayi line hai
+
+        return savedTransaction;
     }
 
     public List<Transaction> getTransactionHistory(UUID useId){

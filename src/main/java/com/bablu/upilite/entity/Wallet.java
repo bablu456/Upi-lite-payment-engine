@@ -1,6 +1,7 @@
 package com.bablu.upilite.entity;
 
 import com.fasterxml.jackson.annotation.JsonBackReference;
+import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -27,5 +28,6 @@ public class Wallet {
     @OneToOne
     @JoinColumn(name = "user_id")
     @JsonBackReference
+    @Schema(hidden = true)
     private User user;
 }

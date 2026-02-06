@@ -5,7 +5,6 @@ import com.bablu.upilite.dto.UserRegistrationDto;
 import com.bablu.upilite.entity.User;
 import com.bablu.upilite.repository.UserRepository;
 import com.bablu.upilite.service.UserService;
-import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
