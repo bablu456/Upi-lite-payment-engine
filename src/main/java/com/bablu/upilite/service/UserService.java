@@ -20,7 +20,7 @@ public class UserService {
     public User registerUser(UserRegistrationDto dto) {
 
         User user = User.builder()
-                .username(dto.getUsername())
+                .name(dto.getUsername())
                 .email(dto.getEmail())
                 .password(dto.getPassword())
                 .build();
