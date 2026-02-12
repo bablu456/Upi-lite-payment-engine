@@ -1,10 +1,11 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
+  Clock3,
   LayoutDashboard,
-  Send,
-  PlusCircle,
-  History,
+  QrCode,
+  ShieldCheck,
+  Users,
   LogOut,
   Wallet,
 } from 'lucide-react';
@@ -17,9 +18,10 @@ const Sidebar = () => {
 
   const menuItems = [
     { icon: LayoutDashboard, label: 'Dashboard', path: '/dashboard' },
-    { icon: Send, label: 'Send Money', path: '/dashboard/send' },
-    { icon: PlusCircle, label: 'Add Money', path: '/dashboard/add' },
-    { icon: History, label: 'Transactions', path: '/dashboard/transactions' },
+    { icon: Clock3, label: 'History', path: '/transactions' },
+    { icon: Users, label: 'Contacts', path: '/contacts' },
+    { icon: QrCode, label: 'My QR', path: '/qr' },
+    { icon: ShieldCheck, label: 'KYC', path: '/kyc' },
   ];
 
   const handleLogout = () => {

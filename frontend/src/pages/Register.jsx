@@ -1,172 +1,153 @@
 import { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Wallet, ArrowRight, User, Mail, Lock } from 'lucide-react';
+import { ArrowRight, Smartphone, Wallet } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import Input from '../components/ui/Input';
 import Button from '../components/ui/Button';
 
 const Register = () => {
+  const navigate = useNavigate();
+  const { register } = useAuth();
+
   const [formData, setFormData] = useState({
     name: '',
     email: '',
+    mobile: '',
     password: '',
     confirmPassword: '',
   });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const { register } = useAuth();
-  const navigate = useNavigate();
 
-  const handleChange = (e) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value,
-    });
+  const handleChange = (event) => {
+    setFormData((previous) => ({
+      ...previous,
+      [event.target.name]: event.target.value,
+    }));
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  const handleSubmit = async (event) => {
+    event.preventDefault();
     setError('');
 
-    if (formData.password !== formData.confirmPassword) {
-      setError('Passwords do not match');
+    if (!/^\d{10,15}$/.test(formData.mobile.trim())) {
+      setError('Please enter a valid mobile number (10 to 15 digits).');
       return;
     }
 
     if (formData.password.length < 6) {
-      setError('Password must be at least 6 characters');
+      setError('Password must be at least 6 characters.');
+      return;
+    }
+
+    if (formData.password !== formData.confirmPassword) {
+      setError('Passwords do not match.');
       return;
     }
 
     setLoading(true);
+    const { confirmPassword, ...payload } = formData;
+    const result = await register(payload);
+    setLoading(false);
 
-    const { confirmPassword, ...userData } = formData;
-    const result = await register(userData);
-    
     if (result.success) {
       navigate('/dashboard');
-    } else {
-      setError(result.error);
+      return;
     }
-    
-    setLoading(false);
+
+    setError(result.error || 'Registration failed.');
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-8">
+    <div className="min-h-screen flex items-center justify-center p-6">
       <motion.div
-        className="w-full max-w-md"
+        className="w-full max-w-lg"
         initial={{ y: 20, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
-        transition={{ duration: 0.6 }}
+        transition={{ duration: 0.4 }}
       >
-        <div className="text-center mb-8">
-          <motion.div
-            initial={{ scale: 0 }}
-            animate={{ scale: 1 }}
-            transition={{ delay: 0.2, type: 'spring' }}
-            className="inline-block mb-4"
-          >
-            <div className="relative">
-              <div className="absolute inset-0 bg-gradient-cyber blur-2xl opacity-50 rounded-full"></div>
-              <Wallet className="w-16 h-16 text-white relative z-10 mx-auto" />
-            </div>
-          </motion.div>
-          <h1 className="text-4xl font-bold gradient-text mb-2">Create Account</h1>
-          <p className="text-gray-400">Join UPI-Lite and start your financial journey</p>
+        <div className="mb-8 text-center">
+          <div className="mx-auto mb-4 inline-flex h-16 w-16 items-center justify-center rounded-2xl border border-white/20 bg-white/10">
+            <Wallet className="h-8 w-8 text-cyan-100" />
+          </div>
+          <h1 className="text-4xl font-bold gradient-text">Create UPI Lite Account</h1>
+          <p className="mt-2 text-sm text-gray-300">Register with mobile and email for OTP-based access.</p>
         </div>
 
-        <motion.div
-          initial={{ y: 20, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          transition={{ delay: 0.3 }}
-          className="glass-card p-8"
-        >
-          <form onSubmit={handleSubmit} className="space-y-6">
+        <div className="glass-card p-8">
+          <form className="space-y-5" onSubmit={handleSubmit}>
             <Input
-              type="text"
-              name="name"
               label="Full Name"
-              placeholder="John Doe"
+              name="name"
               value={formData.name}
               onChange={handleChange}
+              placeholder="Bablu Kumar"
               required
             />
-
             <Input
+              label="Email Address"
               type="email"
               name="email"
-              label="Email Address"
-              placeholder="you@example.com"
               value={formData.email}
               onChange={handleChange}
+              placeholder="you@example.com"
               required
             />
-
             <Input
+              label="Mobile Number"
+              type="tel"
+              name="mobile"
+              value={formData.mobile}
+              onChange={handleChange}
+              placeholder="9876543210"
+              required
+            />
+            <Input
+              label="Password"
               type="password"
               name="password"
-              label="Password"
-              placeholder="••••••••"
               value={formData.password}
               onChange={handleChange}
+              placeholder="At least 6 characters"
               required
             />
-
             <Input
+              label="Confirm Password"
               type="password"
               name="confirmPassword"
-              label="Confirm Password"
-              placeholder="••••••••"
               value={formData.confirmPassword}
               onChange={handleChange}
+              placeholder="Re-enter password"
               required
             />
 
-            {error && (
-              <motion.div
-                initial={{ opacity: 0, y: -10 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="p-4 bg-red-500/20 border border-red-500/50 rounded-xl text-red-300 text-sm"
-              >
+            {error ? (
+              <p className="rounded-xl border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-200">
                 {error}
-              </motion.div>
-            )}
+              </p>
+            ) : null}
 
-            <Button
-              type="submit"
-              variant="primary"
-              size="lg"
-              className="w-full"
-              disabled={loading}
-            >
+            <Button type="submit" variant="primary" className="w-full" disabled={loading}>
               {loading ? (
-                <span className="flex items-center justify-center">
-                  <span className="animate-spin mr-2">⏳</span>
-                  Creating account...
-                </span>
+                'Creating account...'
               ) : (
                 <span className="flex items-center justify-center">
-                  Create Account
-                  <ArrowRight className="ml-2 w-5 h-5" />
+                  <Smartphone className="mr-2 h-4 w-4" />
+                  Register
                 </span>
               )}
             </Button>
           </form>
 
-          <div className="mt-6 text-center">
-            <p className="text-gray-400">
-              Already have an account?{' '}
-              <Link
-                to="/login"
-                className="text-cyber-purple hover:text-cyber-blue transition-colors font-semibold"
-              >
-                Sign In
-              </Link>
-            </p>
-          </div>
-        </motion.div>
+          <p className="mt-7 text-center text-sm text-gray-400">
+            Already have an account?{' '}
+            <Link to="/login" className="font-semibold text-cyan-200 hover:text-cyan-100">
+              Login with OTP
+            </Link>
+            <ArrowRight className="ml-1 inline h-4 w-4" />
+          </p>
+        </div>
       </motion.div>
     </div>
   );

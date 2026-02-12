@@ -16,7 +16,6 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Check if user is logged in on mount
     const token = localStorage.getItem('token');
     const storedUser = localStorage.getItem('user');
     
@@ -32,26 +31,32 @@ export const AuthProvider = ({ children }) => {
     setLoading(false);
   }, []);
 
-  const login = async (email, password) => {
+  const applyAuthenticatedSession = (responseData = {}) => {
+    const token =
+      responseData.token ||
+      responseData.jwt ||
+      responseData.accessToken;
+
+    if (!token) {
+      throw new Error('No token received from server');
+    }
+
+    const userData = {
+      name: responseData.name || responseData.username || 'User',
+      email: responseData.email || '',
+      mobile: responseData.mobile || '',
+      upiId: responseData.upiId || '',
+    };
+
+    localStorage.setItem('token', token);
+    localStorage.setItem('user', JSON.stringify(userData));
+    setUser(userData);
+  };
+
+  const loginWithPassword = async (email, password) => {
     try {
-      // Note: Adjust endpoint based on your backend
-      // Backend has /api/users/login as public endpoint
-      // Response format may vary - adjust based on your backend implementation
       const response = await api.post('/users/login', { email, password });
-      
-      // Adjust based on your backend response structure
-      // Expected: { token: "...", user: {...} } or similar
-      const token = response.data.token || response.data.jwt || response.headers.authorization?.replace('Bearer ', '');
-      const userData = response.data.user || response.data;
-      
-      if (!token) {
-        throw new Error('No token received from server');
-      }
-      
-      localStorage.setItem('token', token);
-      localStorage.setItem('user', JSON.stringify(userData));
-      setUser(userData);
-      
+      applyAuthenticatedSession(response.data);
       return { success: true };
     } catch (error) {
       return {
@@ -61,33 +66,79 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  const requestLoginOtp = async (identifier) => {
+    try {
+      const response = await api.post('/users/login/otp/request', { identifier });
+      return {
+        success: true,
+        message: response.data?.message || 'OTP sent successfully.',
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: error.response?.data?.message || error.message || 'Failed to send OTP.',
+      };
+    }
+  };
+
+  const verifyLoginOtp = async (identifier, otp) => {
+    try {
+      const response = await api.post('/users/login/otp/verify', { identifier, otp });
+      applyAuthenticatedSession(response.data);
+      return { success: true };
+    } catch (error) {
+      return {
+        success: false,
+        error: error.response?.data?.message || error.message || 'OTP verification failed.',
+      };
+    }
+  };
+
+  const requestForgotPasswordOtp = async (identifier) => {
+    try {
+      const response = await api.post('/users/password/forgot/request', { identifier });
+      return {
+        success: true,
+        message: response.data?.message || 'OTP sent successfully.',
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: error.response?.data?.message || error.message || 'Failed to send OTP.',
+      };
+    }
+  };
+
+  const resetPasswordWithOtp = async ({ identifier, otp, newPassword, confirmPassword }) => {
+    try {
+      const response = await api.post('/users/password/forgot/reset', {
+        identifier,
+        otp,
+        newPassword,
+        confirmPassword,
+      });
+      return {
+        success: true,
+        message: response.data?.message || 'Password reset successful.',
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: error.response?.data?.message || error.message || 'Password reset failed.',
+      };
+    }
+  };
+
   const register = async (userData) => {
     try {
-      // Backend endpoint: /api/users/register
-      // Expected DTO: { username, email, password }
       const response = await api.post('/users/register', {
         username: userData.name,
         email: userData.email,
+        mobile: userData.mobile,
         password: userData.password,
       });
-      
-      const newUser = response.data;
-      
-      // Note: Registration might not return a token - you may need to login after registration
-      // If token is returned, store it; otherwise, redirect to login
-      const token = response.data.token || response.data.jwt;
-      
-      if (token) {
-        localStorage.setItem('token', token);
-        localStorage.setItem('user', JSON.stringify(newUser));
-        setUser(newUser);
-      } else {
-        // If no token, just store user and let them login
-        localStorage.setItem('user', JSON.stringify(newUser));
-        setUser(newUser);
-      }
-      
-      return { success: true, needsLogin: !token };
+      applyAuthenticatedSession(response.data);
+      return { success: true, needsLogin: false };
     } catch (error) {
       return {
         success: false,
@@ -104,7 +155,11 @@ export const AuthProvider = ({ children }) => {
 
   const value = {
     user,
-    login,
+    loginWithPassword,
+    requestLoginOtp,
+    verifyLoginOtp,
+    requestForgotPasswordOtp,
+    resetPasswordWithOtp,
     register,
     logout,
     loading,

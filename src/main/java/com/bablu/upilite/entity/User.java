@@ -1,5 +1,6 @@
 package com.bablu.upilite.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.*;
 import org.springframework.security.core.GrantedAuthority;
@@ -7,6 +8,7 @@ import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 
 import java.util.Collection;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 
@@ -30,10 +32,26 @@ public class User implements UserDetails { // 👈 Changed here
     @Column(unique = true, nullable = false)
     private String mobile;
 
+    @JsonIgnore
     private String password; // Ye ab Encrypted store hoga
 
     @Column(unique = true, nullable = false)
     private String upiId;
+
+    @JsonIgnore
+    private String upiPinHash;
+
+    private LocalDateTime pinConfiguredAt;
+
+    @Enumerated(EnumType.STRING)
+    @Builder.Default
+    private KycStatus kycStatus = KycStatus.NOT_SUBMITTED;
+
+    private String kycDocumentName;
+
+    private LocalDateTime kycSubmittedAt;
+
+    private LocalDateTime kycReviewedAt;
 
     @OneToOne(mappedBy = "user", cascade = CascadeType.ALL)
     private Wallet wallet;

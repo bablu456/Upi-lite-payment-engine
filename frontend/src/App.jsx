@@ -4,6 +4,10 @@ import ProtectedRoute from './components/ProtectedRoute';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import Dashboard from './pages/Dashboard';
+import QrCodePage from './pages/QrCodePage';
+import KycPage from './pages/KycPage';
+import Contacts from './pages/Contacts';
+import Transactions from './pages/Transactions';
 
 function App() {
   return (
@@ -17,6 +21,38 @@ function App() {
             element={
               <ProtectedRoute>
                 <Dashboard />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/transactions"
+            element={
+              <ProtectedRoute>
+                <Transactions />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/qr"
+            element={
+              <ProtectedRoute>
+                <QrCodePage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/kyc"
+            element={
+              <ProtectedRoute>
+                <KycPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/contacts"
+            element={
+              <ProtectedRoute>
+                <Contacts />
               </ProtectedRoute>
             }
           />

@@ -6,6 +6,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.context.request.WebRequest;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 
 import java.time.LocalDateTime;
 
@@ -31,6 +32,50 @@ public class GlobalExceptionHandler {
                 webRequest.getDescription(false),
                 exception.getMessage(),
                 "INSUFFICIENT_FUNDS",
+                LocalDateTime.now()
+        );
+        return new ResponseEntity<>(errorDto, HttpStatus.BAD_REQUEST);
+    }
+
+    @ExceptionHandler(WalletLimitExceededException.class)
+    public ResponseEntity<ErrorResponseDto> handleWalletLimitExceededException(WalletLimitExceededException exception, WebRequest webRequest) {
+        ErrorResponseDto errorDto = new ErrorResponseDto(
+                webRequest.getDescription(false),
+                exception.getMessage(),
+                "WALLET_LIMIT_EXCEEDED",
+                LocalDateTime.now()
+        );
+        return new ResponseEntity<>(errorDto, HttpStatus.BAD_REQUEST);
+    }
+
+    @ExceptionHandler(InvalidTransferRequestException.class)
+    public ResponseEntity<ErrorResponseDto> handleInvalidTransferRequestException(InvalidTransferRequestException exception, WebRequest webRequest) {
+        ErrorResponseDto errorDto = new ErrorResponseDto(
+                webRequest.getDescription(false),
+                exception.getMessage(),
+                "INVALID_TRANSFER_REQUEST",
+                LocalDateTime.now()
+        );
+        return new ResponseEntity<>(errorDto, HttpStatus.BAD_REQUEST);
+    }
+
+    @ExceptionHandler(InvalidPinException.class)
+    public ResponseEntity<ErrorResponseDto> handleInvalidPinException(InvalidPinException exception, WebRequest webRequest) {
+        ErrorResponseDto errorDto = new ErrorResponseDto(
+                webRequest.getDescription(false),
+                exception.getMessage(),
+                "INVALID_UPI_PIN",
+                LocalDateTime.now()
+        );
+        return new ResponseEntity<>(errorDto, HttpStatus.BAD_REQUEST);
+    }
+
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public ResponseEntity<ErrorResponseDto> handleUploadSizeExceeded(MaxUploadSizeExceededException exception, WebRequest webRequest) {
+        ErrorResponseDto errorDto = new ErrorResponseDto(
+                webRequest.getDescription(false),
+                "Uploaded file is too large.",
+                "UPLOAD_TOO_LARGE",
                 LocalDateTime.now()
         );
         return new ResponseEntity<>(errorDto, HttpStatus.BAD_REQUEST);

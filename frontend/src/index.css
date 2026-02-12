@@ -26,4 +26,30 @@
   .gradient-border {
     @apply border-2 border-transparent bg-gradient-to-r from-cyber-purple via-cyber-blue to-cyber-purple bg-clip-border;
   }
+
+  .shimmer {
+    position: relative;
+    overflow: hidden;
+    background: rgba(148, 163, 184, 0.16);
+  }
+
+  .shimmer::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    transform: translateX(-100%);
+    background: linear-gradient(
+      100deg,
+      rgba(255, 255, 255, 0) 15%,
+      rgba(255, 255, 255, 0.36) 48%,
+      rgba(255, 255, 255, 0) 82%
+    );
+    animation: shimmer-sweep 1.4s infinite;
+  }
+}
+
+@keyframes shimmer-sweep {
+  100% {
+    transform: translateX(100%);
+  }
 }

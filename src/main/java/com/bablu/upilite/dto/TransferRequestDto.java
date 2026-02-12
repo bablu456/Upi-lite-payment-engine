@@ -9,5 +9,7 @@ import java.util.UUID;
 public class TransferRequestDto {
     private UUID senderId;
     private String receiverUpiId;
+    private String receiverMobile;
     private BigDecimal amount;
+    private String pin;
 }
