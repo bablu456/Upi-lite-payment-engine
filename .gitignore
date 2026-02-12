@@ -38,7 +38,7 @@ frontend/dist/
 frontend/.vite/
 
 ### Local Secrets ###
-src/main/resources/application-local.example.propertiesproperties
+src/main/resources/application-local.example.properties
 src/main/resources/application-secrets.properties
 src/main/resources/application-local.properties
 .env
