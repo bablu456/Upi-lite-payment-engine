@@ -12,4 +12,5 @@ public class TransferRequestDto {
     private String receiverMobile;
     private BigDecimal amount;
     private String pin;
+    private Boolean riskAcknowledged;
 }

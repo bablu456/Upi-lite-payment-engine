@@ -17,6 +17,7 @@ import org.springframework.web.cors.CorsConfigurationSource;
 public class SecurityConfiguration {
 
         private final JwtAuthenticationFilter jwtAuthFilter;
+        private final RequestTracingFilter requestTracingFilter;
         private final AuthenticationProvider authenticationProvider;
         private final CorsConfigurationSource corsConfigurationSource;
 
@@ -39,6 +40,7 @@ public class SecurityConfiguration {
                                                                 "/api/users/login/otp/verify",
                                                                 "/api/users/password/forgot/request",
                                                                 "/api/users/password/forgot/reset",
+                                                                "/api/assistant/**",
                                                                 "/api/notifications/stream",
                                                                 "/swagger-ui/**",
                                                                 "/swagger-ui.html",
@@ -55,6 +57,9 @@ public class SecurityConfiguration {
 
                                 // Authentication Provider set karo
                                 .authenticationProvider(authenticationProvider)
+
+                                // Request tracing filter (X-Request-Id / MDC)
+                                .addFilterBefore(requestTracingFilter, UsernamePasswordAuthenticationFilter.class)
 
                                 // JWT Filter add karo (UsernamePasswordAuthenticationFilter se pehle)
                                 .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);

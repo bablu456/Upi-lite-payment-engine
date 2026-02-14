@@ -11,6 +11,7 @@ import com.bablu.upilite.entity.Wallet;
 import com.bablu.upilite.exception.InsufficientBalanceException;
 import com.bablu.upilite.exception.InvalidPinException;
 import com.bablu.upilite.exception.InvalidTransferRequestException;
+import com.bablu.upilite.exception.ScamRiskException;
 import com.bablu.upilite.exception.WalletLimitExceededException;
 import com.bablu.upilite.repository.IdempotencyRecordRepository;
 import com.bablu.upilite.repository.LedgerEntryRepository;
@@ -46,6 +47,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.lenient;
 
 @ExtendWith(MockitoExtension.class)
 class TransactionServiceTest {
@@ -68,6 +70,8 @@ class TransactionServiceTest {
     private LedgerEntryRepository ledgerEntryRepository;
     @Mock
     private IdempotencyRecordRepository idempotencyRecordRepository;
+    @Mock
+    private ScamRiskService scamRiskService;
 
     @InjectMocks
     private TransactionService transactionService;
@@ -95,6 +99,9 @@ class TransactionServiceTest {
                 .balance(BigDecimal.valueOf(200))
                 .upiId("receiver@upilite")
                 .build();
+
+        lenient().when(scamRiskService.evaluateTransferRisk(any(), any(), any(), any(), any()))
+                .thenReturn(ScamRiskAssessment.allow());
     }
 
     @Test
@@ -273,6 +280,60 @@ class TransactionServiceTest {
     }
 
     @Test
+    void transferFailsWithScamRiskChallengeWhenNotAcknowledged() {
+        TransferRequestDto request = new TransferRequestDto();
+        request.setReceiverUpiId("receiver@upilite");
+        request.setAmount(BigDecimal.valueOf(350));
+
+        mockSender();
+        when(walletRepository.findByUpiId("receiver@upilite")).thenReturn(Optional.of(receiverWallet));
+        when(scamRiskService.evaluateTransferRisk(any(), any(), any(), any(), any()))
+                .thenReturn(ScamRiskAssessment.challenge(62, List.of("First-time transfer to this beneficiary.")));
+
+        assertThatThrownBy(() -> transactionService.transferMoney(request, senderUser.getEmail()))
+                .isInstanceOf(ScamRiskException.class)
+                .hasMessageContaining("Suspicious payment detected");
+    }
+
+    @Test
+    void transferChallengeCanProceedWhenAcknowledged() {
+        TransferRequestDto request = new TransferRequestDto();
+        request.setReceiverUpiId("receiver@upilite");
+        request.setAmount(BigDecimal.valueOf(350));
+        request.setRiskAcknowledged(true);
+
+        mockSender();
+        when(walletRepository.findByUpiId("receiver@upilite")).thenReturn(Optional.of(receiverWallet));
+        when(scamRiskService.evaluateTransferRisk(any(), any(), any(), any(), any()))
+                .thenReturn(ScamRiskAssessment.challenge(60, List.of("Rapid outgoing transfers detected.")));
+        when(transactionRepository.save(any(Transaction.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        Transaction response = transactionService.transferMoney(request, senderUser.getEmail());
+
+        assertThat(response.getStatus()).isEqualTo(PaymentStatus.SUCCESS);
+        assertThat(senderWallet.getBalance()).isEqualByComparingTo("1150");
+    }
+
+    @Test
+    void transferBlockedByScamShieldFailsEvenWhenAcknowledged() {
+        TransferRequestDto request = new TransferRequestDto();
+        request.setReceiverUpiId("receiver@upilite");
+        request.setAmount(BigDecimal.valueOf(1200));
+        request.setRiskAcknowledged(true);
+        request.setPin("1234");
+
+        mockSender();
+        when(passwordEncoder.matches("1234", "hashed-pin")).thenReturn(true);
+        when(walletRepository.findByUpiId("receiver@upilite")).thenReturn(Optional.of(receiverWallet));
+        when(scamRiskService.evaluateTransferRisk(any(), any(), any(), any(), any()))
+                .thenReturn(ScamRiskAssessment.block(85, List.of("High-value first-time transfer pattern.")));
+
+        assertThatThrownBy(() -> transactionService.transferMoney(request, senderUser.getEmail()))
+                .isInstanceOf(ScamRiskException.class)
+                .hasMessageContaining("blocked by Scam Shield");
+    }
+
+    @Test
     void pagedHistoryWithCreditFilterUsesCreditQuery() {
         Transaction tx = Transaction.builder()
                 .id(UUID.randomUUID())
@@ -324,7 +385,8 @@ class TransactionServiceTest {
                 ? ""
                 : request.getAmount().stripTrailingZeros().toPlainString();
         String pin = request.getPin() == null ? "" : request.getPin().trim();
-        String canonicalPayload = receiverUpiId + "|" + receiverMobile + "|" + amount + "|" + pin;
+        String riskAcknowledged = String.valueOf(Boolean.TRUE.equals(request.getRiskAcknowledged()));
+        String canonicalPayload = receiverUpiId + "|" + receiverMobile + "|" + amount + "|" + pin + "|" + riskAcknowledged;
         return sha256Hex(canonicalPayload);
     }
 

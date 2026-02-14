@@ -1,10 +1,15 @@
 package com.bablu.upilite.service;
 
 import com.bablu.upilite.util.AppConstants;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Service;
 
 @Service
+// Deployment strategy:
+// Consumer starts only when APP_KAFKA_ENABLED=true.
+// Set APP_KAFKA_ENABLED=false to disable Kafka listener in hosted/demo environments.
+@ConditionalOnProperty(name = "app.kafka.enabled", havingValue = "true", matchIfMissing = true)
 public class NotificationConsumer {
 
     // 👂 Ye method Kafka Topic par kaan laga kar baitha hai

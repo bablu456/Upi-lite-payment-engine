@@ -58,6 +58,35 @@ const shortId = (id) => {
 
 export const isAuthError = (error) => AUTH_STATUSES.has(error?.response?.status);
 
+const mapScamRiskError = (error) => {
+  const payload = error?.response?.data;
+  const errorCode = String(payload?.errorCode || '').toUpperCase();
+  if (!errorCode.startsWith('SCAM_RISK_')) {
+    return null;
+  }
+
+  const metadata = payload?.metadata || {};
+  const reasons = Array.isArray(metadata?.reasons)
+    ? metadata.reasons.filter((reason) => typeof reason === 'string' && reason.trim())
+    : [];
+  const action = String(metadata?.action || '').toUpperCase() || (errorCode.includes('BLOCK') ? 'BLOCK' : 'CHALLENGE');
+  const riskScore = Number.isFinite(Number(metadata?.riskScore)) ? Number(metadata.riskScore) : null;
+  const message =
+    payload?.errorMessage ||
+    payload?.message ||
+    (action === 'BLOCK'
+      ? 'Transfer blocked by Scam Shield due to high-risk pattern.'
+      : 'Suspicious transfer detected. Please review and confirm.');
+
+  return {
+    code: errorCode,
+    action,
+    message,
+    reasons,
+    riskScore,
+  };
+};
+
 export const getErrorMessage = (error, fallback = 'Something went wrong.') => {
   const payload = error?.response?.data;
   const message =
@@ -160,6 +189,34 @@ export const normalizeHistoryPage = (payload = {}, identity = {}, fallback = {})
   };
 };
 
+export const normalizeDispute = (dispute = {}) => {
+  const timeline = Array.isArray(dispute?.timeline)
+    ? dispute.timeline.map((event) => ({
+        status: String(event?.status || '').toUpperCase(),
+        title: event?.title || '',
+        description: event?.description || '',
+        occurredAt: event?.occurredAt || null,
+        completed: Boolean(event?.completed),
+      }))
+    : [];
+
+  return {
+    disputeId: dispute?.disputeId || dispute?.id || null,
+    transactionId: dispute?.transactionId || null,
+    status: String(dispute?.status || 'OPEN').toUpperCase(),
+    reason: dispute?.reason || '',
+    description: dispute?.description || '',
+    resolutionNote: dispute?.resolutionNote || '',
+    refundProcessed: Boolean(dispute?.refundProcessed),
+    refundAmount: toNumber(dispute?.refundAmount),
+    createdAt: dispute?.createdAt || null,
+    underReviewAt: dispute?.underReviewAt || null,
+    resolvedAt: dispute?.resolvedAt || null,
+    updatedAt: dispute?.updatedAt || null,
+    timeline,
+  };
+};
+
 export const getProfile = async () => {
   const storedUser = parseStoredUser();
   const fallbackProfile = normalizeProfile(storedUser);
@@ -257,6 +314,7 @@ export const transferMoney = async ({
   receiverMobile,
   amount,
   pin,
+  riskAcknowledged,
   senderId,
   identity,
 }) => {
@@ -279,6 +337,10 @@ export const transferMoney = async ({
     payload.pin = pin.trim();
   }
 
+  if (riskAcknowledged === true) {
+    payload.riskAcknowledged = true;
+  }
+
   const idempotencyKey = createIdempotencyKey('transfer');
 
   try {
@@ -289,21 +351,39 @@ export const transferMoney = async ({
     });
     return normalizeTransaction(response.data, identity);
   } catch (error) {
+    const scamRisk = mapScamRiskError(error);
+    if (scamRisk) {
+      const riskError = new Error(scamRisk.message);
+      riskError.code = scamRisk.code;
+      riskError.scamRisk = scamRisk;
+      throw riskError;
+    }
+
     if (isAuthError(error) || !senderId) {
       throw error;
     }
   }
 
-  const fallbackResponse = await api.post('/transactions/transfer', {
-    ...payload,
-    senderId,
-  }, {
-    headers: {
-      'Idempotency-Key': idempotencyKey,
-    },
-  });
-
-  return normalizeTransaction(fallbackResponse.data, identity);
+  try {
+    const fallbackResponse = await api.post('/transactions/transfer', {
+      ...payload,
+      senderId,
+    }, {
+      headers: {
+        'Idempotency-Key': idempotencyKey,
+      },
+    });
+    return normalizeTransaction(fallbackResponse.data, identity);
+  } catch (error) {
+    const scamRisk = mapScamRiskError(error);
+    if (scamRisk) {
+      const riskError = new Error(scamRisk.message);
+      riskError.code = scamRisk.code;
+      riskError.scamRisk = scamRisk;
+      throw riskError;
+    }
+    throw error;
+  }
 };
 
 export const setPin = async ({ pin, confirmPin }) => {
@@ -312,6 +392,21 @@ export const setPin = async ({ pin, confirmPin }) => {
     confirmPin,
   });
   return response.data;
+};
+
+export const updateProfile = async ({ name, upiId }) => {
+  const payload = {};
+
+  if (name !== undefined) {
+    payload.name = String(name ?? '');
+  }
+
+  if (upiId !== undefined) {
+    payload.upiId = String(upiId ?? '');
+  }
+
+  const response = await api.put('/users/profile', payload);
+  return normalizeProfile(response.data);
 };
 
 export const creditWallet = async ({ amount }) => {
@@ -384,6 +479,42 @@ export const sendContactMessage = async ({ receiverUpiId, receiverMobile, messag
   return response.data;
 };
 
+export const raiseDispute = async ({ transactionId, reason, description }) => {
+  const response = await api.post('/disputes', {
+    transactionId,
+    reason,
+    description,
+  });
+  return normalizeDispute(response.data);
+};
+
+export const getDisputes = async ({ status } = {}) => {
+  const response = await api.get('/disputes', {
+    params: {
+      status: status?.trim() || undefined,
+    },
+  });
+  return toList(response.data).map(normalizeDispute);
+};
+
+export const getDisputeById = async (disputeId) => {
+  const response = await api.get(`/disputes/${disputeId}`);
+  return normalizeDispute(response.data);
+};
+
+export const markDisputeUnderReview = async (disputeId) => {
+  const response = await api.post(`/disputes/${disputeId}/under-review`);
+  return normalizeDispute(response.data);
+};
+
+export const resolveDispute = async (disputeId, { resolutionNote, issueRefund } = {}) => {
+  const response = await api.post(`/disputes/${disputeId}/resolve`, {
+    resolutionNote: resolutionNote?.trim() || undefined,
+    issueRefund: issueRefund === true,
+  });
+  return normalizeDispute(response.data);
+};
+
 const parseEventPayload = (rawData) => {
   if (typeof rawData !== 'string') {
     return rawData ?? null;
@@ -434,6 +565,7 @@ const TransactionService = {
   getTransactionHistory,
   transferMoney,
   setPin,
+  updateProfile,
   creditWallet,
   getMyUpiQr,
   getKycStatus,
@@ -441,11 +573,17 @@ const TransactionService = {
   mockApproveKyc,
   getContacts,
   sendContactMessage,
+  raiseDispute,
+  getDisputes,
+  getDisputeById,
+  markDisputeUnderReview,
+  resolveDispute,
   subscribePaymentAlerts,
   getErrorMessage,
   isAuthError,
   normalizeTransaction,
   normalizeHistoryPage,
+  normalizeDispute,
   normalizeProfile,
   normalizeContact,
 };

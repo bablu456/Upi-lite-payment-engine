@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { ArrowRight, KeyRound, Mail, Wallet } from 'lucide-react';
+import { ArrowRight, KeyRound, LockKeyhole, Mail, Wallet } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import Input from '../components/ui/Input';
 import Button from '../components/ui/Button';
@@ -16,13 +16,16 @@ const initialResetState = {
 const Login = () => {
   const navigate = useNavigate();
   const {
+    loginWithPassword,
     requestLoginOtp,
     verifyLoginOtp,
     requestForgotPasswordOtp,
     resetPasswordWithOtp,
   } = useAuth();
 
+  const [loginMode, setLoginMode] = useState('otp');
   const [identifier, setIdentifier] = useState('');
+  const [password, setPassword] = useState('');
   const [otp, setOtp] = useState('');
   const [otpRequested, setOtpRequested] = useState(false);
   const [authMessage, setAuthMessage] = useState('');
@@ -35,6 +38,29 @@ const Login = () => {
   const [resetMessage, setResetMessage] = useState('');
   const [resetError, setResetError] = useState('');
   const [resetLoading, setResetLoading] = useState(false);
+
+  const resetAuthState = () => {
+    setOtpRequested(false);
+    setAuthMessage('');
+    setAuthError('');
+    setOtp('');
+    setPassword('');
+  };
+
+  const handlePasswordLogin = async (event) => {
+    event.preventDefault();
+    setAuthError('');
+    setAuthMessage('');
+    setAuthLoading(true);
+
+    const response = await loginWithPassword(identifier, password);
+    if (response.success) {
+      navigate('/dashboard');
+    } else {
+      setAuthError(response.error);
+    }
+    setAuthLoading(false);
+  };
 
   const handleRequestOtp = async (event) => {
     event.preventDefault();
@@ -113,30 +139,83 @@ const Login = () => {
           </div>
           <h1 className="text-4xl font-bold gradient-text">UPI-Lite Login</h1>
           <p className="mt-2 text-sm text-gray-300">
-            PhonePe/GPay style OTP sign-in using your registered email or mobile.
+            Login with OTP or password using your registered account.
           </p>
         </div>
 
         <div className="glass-card p-8">
-          <h2 className="text-2xl font-semibold text-white">Login With OTP</h2>
-          <p className="mt-1 text-sm text-gray-400">Step 1: Request OTP. Step 2: Verify OTP.</p>
+          <div className="grid grid-cols-2 gap-2 rounded-xl border border-white/10 bg-white/5 p-1">
+            <button
+              type="button"
+              className={`rounded-lg px-4 py-2 text-sm font-semibold transition ${
+                loginMode === 'otp' ? 'bg-cyan-500/20 text-cyan-100' : 'text-gray-300 hover:bg-white/10'
+              }`}
+              onClick={() => {
+                setLoginMode('otp');
+                resetAuthState();
+              }}
+            >
+              OTP Login
+            </button>
+            <button
+              type="button"
+              className={`rounded-lg px-4 py-2 text-sm font-semibold transition ${
+                loginMode === 'password' ? 'bg-cyan-500/20 text-cyan-100' : 'text-gray-300 hover:bg-white/10'
+              }`}
+              onClick={() => {
+                setLoginMode('password');
+                resetAuthState();
+              }}
+            >
+              Password Login
+            </button>
+          </div>
 
-          <form className="mt-5 space-y-4" onSubmit={otpRequested ? handleVerifyOtp : handleRequestOtp}>
+          <h2 className="mt-5 text-2xl font-semibold text-white">
+            {loginMode === 'otp' ? 'Login With OTP' : 'Login With Password'}
+          </h2>
+          <p className="mt-1 text-sm text-gray-400">
+            {loginMode === 'otp'
+              ? 'Step 1: Request OTP. Step 2: Verify OTP.'
+              : 'Use your registered email and password to sign in.'}
+          </p>
+
+          <form
+            className="mt-5 space-y-4"
+            onSubmit={
+              loginMode === 'otp'
+                ? otpRequested
+                  ? handleVerifyOtp
+                  : handleRequestOtp
+                : handlePasswordLogin
+            }
+          >
             <Input
-              label="Email or Mobile"
-              placeholder="you@example.com or 9876543210"
+              label={loginMode === 'otp' ? 'Email or Mobile' : 'Email'}
+              placeholder={loginMode === 'otp' ? 'you@example.com or 9876543210' : 'you@example.com'}
               value={identifier}
               onChange={(event) => setIdentifier(event.target.value)}
               required
             />
 
-            {otpRequested ? (
+            {loginMode === 'otp' && otpRequested ? (
               <Input
                 label="OTP"
                 placeholder="6-digit OTP"
                 value={otp}
                 onChange={(event) => setOtp(event.target.value)}
                 maxLength={6}
+                required
+              />
+            ) : null}
+
+            {loginMode === 'password' ? (
+              <Input
+                label="Password"
+                type="password"
+                placeholder="Enter your password"
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
                 required
               />
             ) : null}
@@ -154,7 +233,7 @@ const Login = () => {
             ) : null}
 
             <div className="flex gap-3">
-              {otpRequested ? (
+              {loginMode === 'otp' && otpRequested ? (
                 <Button
                   type="button"
                   variant="ghost"
@@ -174,6 +253,11 @@ const Login = () => {
               <Button type="submit" variant="primary" className="flex-1" disabled={authLoading}>
                 {authLoading ? (
                   'Please wait...'
+                ) : loginMode === 'password' ? (
+                  <span className="flex items-center justify-center">
+                    <LockKeyhole className="mr-2 h-4 w-4" />
+                    Login
+                  </span>
                 ) : otpRequested ? (
                   <span className="flex items-center justify-center">
                     <KeyRound className="mr-2 h-4 w-4" />

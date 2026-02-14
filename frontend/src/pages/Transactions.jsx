@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { ArrowDownLeft, ArrowUpRight, BellRing, ChevronLeft, ChevronRight, Filter, Loader2 } from 'lucide-react';
+import { AlertTriangle, ArrowDownLeft, ArrowUpRight, BellRing, ChevronLeft, ChevronRight, Filter, Loader2 } from 'lucide-react';
 import Sidebar from '../components/Sidebar';
 import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
@@ -200,7 +200,7 @@ const Transactions = () => {
   return (
     <div className="flex h-screen overflow-hidden bg-cyber-dark">
       <Sidebar />
-      <main className="flex-1 overflow-y-auto">
+      <main className="flex-1 overflow-y-auto pt-16 pb-24 md:pt-0 md:pb-0">
         <div className="mx-auto max-w-6xl p-5 md:p-8">
           <motion.div
             initial={{ opacity: 0, y: -16 }}
@@ -280,7 +280,7 @@ const Transactions = () => {
           </Card>
 
           <Card className="p-0">
-            <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
+            <div className="flex flex-col gap-2 border-b border-white/10 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <h2 className="text-xl font-semibold text-white">Transactions</h2>
                 <p className="text-sm text-gray-400">{pageLabel}</p>
@@ -342,6 +342,16 @@ const Transactions = () => {
                           {balanceFormatter.format(Math.abs(transaction.amount))}
                         </p>
                         <p className="text-xs uppercase tracking-wide text-gray-500">{transaction.status || 'SUCCESS'}</p>
+                        {!isCredit ? (
+                          <button
+                            type="button"
+                            className="mt-1 inline-flex items-center text-[11px] text-amber-300 transition hover:text-amber-200"
+                            onClick={() => navigate('/disputes', { state: { transactionId: transaction.id } })}
+                          >
+                            <AlertTriangle className="mr-1 h-3 w-3" />
+                            Raise dispute
+                          </button>
+                        ) : null}
                       </div>
                     </motion.div>
                   );
@@ -350,12 +360,12 @@ const Transactions = () => {
             )}
           </Card>
 
-          <div className="mt-4 flex items-center justify-between">
+          <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <Button type="button" variant="ghost" disabled={historyPage.first || isLoading} onClick={() => setPage((prev) => Math.max(prev - 1, 0))}>
               <ChevronLeft className="mr-2 h-4 w-4" />
               Previous
             </Button>
-            <p className="text-sm text-gray-300">{pageLabel}</p>
+            <p className="text-center text-sm text-gray-300">{pageLabel}</p>
             <Button
               type="button"
               variant="ghost"

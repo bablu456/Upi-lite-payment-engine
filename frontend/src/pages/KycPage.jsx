@@ -166,7 +166,7 @@ const KycPage = () => {
   return (
     <div className="flex h-screen overflow-hidden bg-cyber-dark">
       <Sidebar />
-      <main className="flex-1 overflow-y-auto">
+      <main className="flex-1 overflow-y-auto pt-16 pb-24 md:pt-0 md:pb-0">
         <div className="mx-auto max-w-5xl p-5 md:p-8">
           <motion.div initial={{ opacity: 0, y: -16 }} animate={{ opacity: 1, y: 0 }} className="mb-6">
             <h1 className="text-3xl font-bold text-white md:text-4xl">KYC Verification</h1>

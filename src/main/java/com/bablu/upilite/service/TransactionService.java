@@ -14,6 +14,7 @@ import com.bablu.upilite.entity.User;
 import com.bablu.upilite.entity.Wallet;
 import com.bablu.upilite.exception.InsufficientBalanceException;
 import com.bablu.upilite.exception.InvalidPinException;
+import com.bablu.upilite.exception.ScamRiskException;
 import com.bablu.upilite.exception.InvalidTransferRequestException;
 import com.bablu.upilite.exception.UserNotFoundException;
 import com.bablu.upilite.exception.WalletLimitExceededException;
@@ -62,6 +63,7 @@ public class TransactionService {
     private final RealtimeNotificationService realtimeNotificationService;
     private final LedgerEntryRepository ledgerEntryRepository;
     private final IdempotencyRecordRepository idempotencyRecordRepository;
+    private final ScamRiskService scamRiskService;
 
     @Transactional
     public Transaction transferMoney(TransferRequestDto request, String senderEmail) {
@@ -92,6 +94,7 @@ public class TransactionService {
 
         enforcePinPolicyIfRequired(sender, request.getPin(), request.getAmount());
         Wallet receiverWallet = resolveReceiverWallet(request);
+        enforceScamShield(sender, senderWallet, receiverWallet, request);
 
         if (senderWallet.getId().equals(receiverWallet.getId())) {
             throw new InvalidTransferRequestException("Sender and receiver cannot be the same wallet.");
@@ -302,6 +305,39 @@ public class TransactionService {
         }
     }
 
+    private void enforceScamShield(User sender,
+                                   Wallet senderWallet,
+                                   Wallet receiverWallet,
+                                   TransferRequestDto request) {
+        ScamRiskAssessment riskAssessment = scamRiskService.evaluateTransferRisk(
+                sender,
+                senderWallet,
+                receiverWallet.getUser(),
+                receiverWallet,
+                request);
+
+        if (riskAssessment.action() == ScamRiskAction.ALLOW) {
+            return;
+        }
+
+        if (riskAssessment.action() == ScamRiskAction.BLOCK) {
+            throw new ScamRiskException(
+                    "Transfer blocked by Scam Shield due to high fraud risk.",
+                    ScamRiskAction.BLOCK,
+                    riskAssessment.score(),
+                    riskAssessment.reasons());
+        }
+
+        boolean riskAcknowledged = Boolean.TRUE.equals(request.getRiskAcknowledged());
+        if (!riskAcknowledged) {
+            throw new ScamRiskException(
+                    "Suspicious payment detected. Review warning and confirm to proceed.",
+                    ScamRiskAction.CHALLENGE,
+                    riskAssessment.score(),
+                    riskAssessment.reasons());
+        }
+    }
+
     private void publishNotificationAfterCommit(String message) {
         runAfterCommit(() -> notificationProducer.sendNotificationAsync(message));
     }
@@ -440,7 +476,8 @@ public class TransactionService {
                 ? ""
                 : request.getAmount().stripTrailingZeros().toPlainString();
         String pin = request.getPin() == null ? "" : request.getPin().trim();
-        String canonicalPayload = receiverUpiId + "|" + receiverMobile + "|" + amount + "|" + pin;
+        String riskAcknowledged = String.valueOf(Boolean.TRUE.equals(request.getRiskAcknowledged()));
+        String canonicalPayload = receiverUpiId + "|" + receiverMobile + "|" + amount + "|" + pin + "|" + riskAcknowledged;
         return sha256Hex(canonicalPayload);
     }
 

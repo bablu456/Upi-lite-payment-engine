@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
   ArrowDownLeft,
@@ -9,6 +9,7 @@ import {
   KeyRound,
   PlusCircle,
   QrCode,
+  ScanLine,
   Send,
   ShieldCheck,
   Users,
@@ -60,6 +61,7 @@ const formatDate = (value) => {
 
 const Dashboard = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { logout } = useAuth();
 
   const [profile, setProfile] = useState(initialProfile);
@@ -71,6 +73,11 @@ const Dashboard = () => {
   const [dashboardError, setDashboardError] = useState('');
   const [realtimeMessage, setRealtimeMessage] = useState('');
   const [isSendModalOpen, setIsSendModalOpen] = useState(false);
+  const [sendPreset, setSendPreset] = useState({
+    receiverMode: '',
+    receiverValue: '',
+    amount: '',
+  });
   const [isLoadMoneyOpen, setIsLoadMoneyOpen] = useState(false);
   const [isPinSetupOpen, setIsPinSetupOpen] = useState(false);
 
@@ -81,6 +88,14 @@ const Dashboard = () => {
   const [pinForm, setPinForm] = useState({ pin: '', confirmPin: '' });
   const [pinError, setPinError] = useState('');
   const [isSavingPin, setIsSavingPin] = useState(false);
+
+  const clearSendPreset = useCallback(() => {
+    setSendPreset({
+      receiverMode: '',
+      receiverValue: '',
+      amount: '',
+    });
+  }, []);
 
   const profileRef = useRef(initialProfile);
   const realtimeTimeoutRef = useRef(null);
@@ -166,6 +181,21 @@ const Dashboard = () => {
   }, [fetchDashboardData]);
 
   useEffect(() => {
+    const scanPrefill = location.state?.scanPrefill;
+    if (!scanPrefill?.receiverValue) {
+      return;
+    }
+
+    setSendPreset({
+      receiverMode: scanPrefill.receiverMode === 'mobile' ? 'mobile' : 'upi',
+      receiverValue: String(scanPrefill.receiverValue),
+      amount: String(scanPrefill.amount ?? ''),
+    });
+    setIsSendModalOpen(true);
+    navigate('/dashboard', { replace: true, state: null });
+  }, [location.state, navigate]);
+
+  useEffect(() => {
     const unsubscribe = TransactionService.subscribePaymentAlerts({
       onAlert: (payload) => {
         const message = payload?.message || 'Payment status updated.';
@@ -189,7 +219,7 @@ const Dashboard = () => {
     };
   }, [fetchDashboardData]);
 
-  const onTransferSuccess = async ({ receiverUpiId, receiverMobile, amount, pin }) => {
+  const onTransferSuccess = async ({ receiverUpiId, receiverMobile, amount, pin, riskAcknowledged }) => {
     const value = Number(amount);
     const counterparty = receiverUpiId || receiverMobile || 'Receiver';
 
@@ -217,6 +247,7 @@ const Dashboard = () => {
         receiverMobile,
         amount: value,
         pin,
+        riskAcknowledged,
         senderId: profile.walletId || profile.userId,
         identity: profile,
       });
@@ -235,6 +266,10 @@ const Dashboard = () => {
       }));
 
       if (redirectIfUnauthorized(error)) {
+        throw error;
+      }
+
+      if (error?.scamRisk) {
         throw error;
       }
 
@@ -316,7 +351,7 @@ const Dashboard = () => {
   return (
     <div className="flex h-screen overflow-hidden bg-cyber-dark">
       <Sidebar />
-      <main className="flex-1 overflow-y-auto">
+      <main className="flex-1 overflow-y-auto pt-16 pb-24 md:pt-0 md:pb-0">
         <div className="mx-auto max-w-6xl p-5 md:p-8">
           <motion.div
             initial={{ opacity: 0, y: -16 }}
@@ -328,9 +363,14 @@ const Dashboard = () => {
               <p className="mt-1 text-sm text-gray-300">{profile.upiId || 'UPI ID unavailable'}</p>
               <p className="text-xs text-gray-400">{profile.mobile ? `Mobile: ${profile.mobile}` : ''}</p>
             </div>
-            <div className="flex h-12 w-12 items-center justify-center rounded-full border border-white/30 bg-white/10">
+            <button
+              type="button"
+              onClick={() => navigate('/profile')}
+              className="flex h-12 w-12 items-center justify-center rounded-full border border-white/30 bg-white/10 transition hover:bg-white/20"
+              aria-label="Open profile"
+            >
               <UserCircle2 className="h-7 w-7 text-cyan-200" />
-            </div>
+            </button>
           </motion.div>
 
           {dashboardError ? (
@@ -410,16 +450,28 @@ const Dashboard = () => {
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.18 }}
-            className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-6"
+            className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-7"
           >
             <Button
               variant="secondary"
               size="md"
               className="flex w-full items-center justify-center"
-              onClick={() => setIsSendModalOpen(true)}
+              onClick={() => {
+                clearSendPreset();
+                setIsSendModalOpen(true);
+              }}
             >
               <Send className="mr-2 h-5 w-5" />
               Send Money
+            </Button>
+            <Button
+              variant="secondary"
+              size="md"
+              className="flex w-full items-center justify-center"
+              onClick={() => navigate('/scan-pay')}
+            >
+              <ScanLine className="mr-2 h-5 w-5" />
+              Scan & Pay
             </Button>
             <Button
               variant="secondary"
@@ -545,9 +597,15 @@ const Dashboard = () => {
 
       <SendMoneyModal
         isOpen={isSendModalOpen}
-        onClose={() => setIsSendModalOpen(false)}
+        onClose={() => {
+          setIsSendModalOpen(false);
+          clearSendPreset();
+        }}
         onSend={onTransferSuccess}
         senderUpiId={profile.upiId}
+        presetReceiverMode={sendPreset.receiverMode}
+        presetReceiverValue={sendPreset.receiverValue}
+        presetAmount={sendPreset.amount}
       />
 
       {isLoadMoneyOpen ? (

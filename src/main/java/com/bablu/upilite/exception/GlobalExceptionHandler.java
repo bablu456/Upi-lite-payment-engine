@@ -1,6 +1,7 @@
 package com.bablu.upilite.exception;
 
 import com.bablu.upilite.dto.ErrorResponseDto;
+import com.bablu.upilite.service.ScamRiskAction;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ControllerAdvice;
@@ -9,6 +10,7 @@ import org.springframework.web.context.request.WebRequest;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 
 import java.time.LocalDateTime;
+import java.util.Map;
 
 @ControllerAdvice //  Ye puri app ka "Watchman" hai
 public class GlobalExceptionHandler {
@@ -68,6 +70,54 @@ public class GlobalExceptionHandler {
                 LocalDateTime.now()
         );
         return new ResponseEntity<>(errorDto, HttpStatus.BAD_REQUEST);
+    }
+
+    @ExceptionHandler(DisputeNotFoundException.class)
+    public ResponseEntity<ErrorResponseDto> handleDisputeNotFoundException(DisputeNotFoundException exception, WebRequest webRequest) {
+        ErrorResponseDto errorDto = new ErrorResponseDto(
+                webRequest.getDescription(false),
+                exception.getMessage(),
+                "DISPUTE_NOT_FOUND",
+                LocalDateTime.now()
+        );
+        return new ResponseEntity<>(errorDto, HttpStatus.NOT_FOUND);
+    }
+
+    @ExceptionHandler(ScamRiskException.class)
+    public ResponseEntity<ErrorResponseDto> handleScamRiskException(ScamRiskException exception, WebRequest webRequest) {
+        ScamRiskAction action = exception.getAction() == null ? ScamRiskAction.CHALLENGE : exception.getAction();
+        HttpStatus status = action == ScamRiskAction.BLOCK
+                ? HttpStatus.FORBIDDEN
+                : HttpStatus.PRECONDITION_REQUIRED;
+        String errorCode = action == ScamRiskAction.BLOCK
+                ? "SCAM_RISK_BLOCKED"
+                : "SCAM_RISK_CHALLENGE";
+
+        ErrorResponseDto errorDto = new ErrorResponseDto(
+                webRequest.getDescription(false),
+                exception.getMessage(),
+                errorCode,
+                LocalDateTime.now(),
+                Map.of(
+                        "action", action.name(),
+                        "riskScore", exception.getRiskScore(),
+                        "reasons", exception.getReasons()
+                )
+        );
+        return new ResponseEntity<>(errorDto, status);
+    }
+
+    @ExceptionHandler(RateLimitExceededException.class)
+    public ResponseEntity<ErrorResponseDto> handleRateLimitExceededException(RateLimitExceededException exception,
+                                                                             WebRequest webRequest) {
+        ErrorResponseDto errorDto = new ErrorResponseDto(
+                webRequest.getDescription(false),
+                exception.getMessage(),
+                "RATE_LIMIT_EXCEEDED",
+                LocalDateTime.now(),
+                Map.of("retryAfterSeconds", exception.getRetryAfterSeconds())
+        );
+        return new ResponseEntity<>(errorDto, HttpStatus.TOO_MANY_REQUESTS);
     }
 
     @ExceptionHandler(MaxUploadSizeExceededException.class)

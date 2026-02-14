@@ -4,6 +4,7 @@ import com.bablu.upilite.dto.KycStatusResponseDto;
 import com.bablu.upilite.dto.ContactMessageRequestDto;
 import com.bablu.upilite.dto.ContactResponseDto;
 import com.bablu.upilite.dto.SetPinRequestDto;
+import com.bablu.upilite.dto.UpdateProfileRequestDto;
 import com.bablu.upilite.dto.UserProfileResponseDto;
 import com.bablu.upilite.dto.UserRegistrationDto;
 import com.bablu.upilite.entity.KycStatus;
@@ -18,6 +19,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -35,6 +37,9 @@ public class UserService {
     private static final Logger LOGGER = LoggerFactory.getLogger(UserService.class);
     private static final long MAX_KYC_FILE_SIZE_BYTES = 5L * 1024L * 1024L;
     private static final Set<String> ALLOWED_KYC_EXTENSIONS = Set.of("pdf", "png", "jpg", "jpeg");
+    private static final int MIN_NAME_LENGTH = 2;
+    private static final int MAX_NAME_LENGTH = 60;
+    private static final String UPI_ID_PATTERN = "^[a-z0-9._-]{3,40}@[a-z0-9]{2,20}$";
 
     private final UserRepository userRepository;
     private final WalletRepository walletRepository;
@@ -112,6 +117,48 @@ public class UserService {
                 .kycSubmittedAt(user.getKycSubmittedAt())
                 .kycReviewedAt(user.getKycReviewedAt())
                 .build();
+    }
+
+    @Transactional
+    public UserProfileResponseDto updateProfile(String email, UpdateProfileRequestDto request) {
+        if (request == null) {
+            throw new InvalidTransferRequestException("Profile payload is required.");
+        }
+
+        User user = getUserByEmailOrThrow(email);
+        Wallet wallet = resolveWalletForUser(user);
+
+        boolean hasAnyFieldToUpdate = false;
+
+        if (request.getName() != null) {
+            String updatedName = request.getName().trim();
+            if (!StringUtils.hasText(updatedName)) {
+                throw new InvalidTransferRequestException("Name cannot be empty.");
+            }
+            if (updatedName.length() < MIN_NAME_LENGTH || updatedName.length() > MAX_NAME_LENGTH) {
+                throw new InvalidTransferRequestException("Name must be between 2 and 60 characters.");
+            }
+            user.setName(updatedName);
+            hasAnyFieldToUpdate = true;
+        }
+
+        if (request.getUpiId() != null) {
+            String normalizedUpiId = normalizeUpiId(request.getUpiId());
+            if (!normalizedUpiId.equals(user.getUpiId()) && userRepository.existsByUpiId(normalizedUpiId)) {
+                throw new InvalidTransferRequestException("UPI ID already in use. Please choose another one.");
+            }
+            user.setUpiId(normalizedUpiId);
+            wallet.setUpiId(normalizedUpiId);
+            hasAnyFieldToUpdate = true;
+        }
+
+        if (!hasAnyFieldToUpdate) {
+            throw new InvalidTransferRequestException("Provide at least one field to update: name or upiId.");
+        }
+
+        userRepository.save(user);
+        walletRepository.save(wallet);
+        return getProfile(email);
     }
 
     public boolean setupUpiPin(String email, SetPinRequestDto request) {
@@ -304,5 +351,18 @@ public class UserService {
         }
 
         throw new InvalidTransferRequestException("Unable to generate unique UPI ID. Please try again.");
+    }
+
+    private String normalizeUpiId(String rawUpiId) {
+        String normalizedUpiId = rawUpiId == null ? "" : rawUpiId.trim().toLowerCase(Locale.ROOT);
+        if (!StringUtils.hasText(normalizedUpiId)) {
+            throw new InvalidTransferRequestException("UPI ID cannot be empty.");
+        }
+
+        if (!normalizedUpiId.matches(UPI_ID_PATTERN)) {
+            throw new InvalidTransferRequestException("UPI ID format is invalid. Use format like username@upi.");
+        }
+
+        return normalizedUpiId;
     }
 }

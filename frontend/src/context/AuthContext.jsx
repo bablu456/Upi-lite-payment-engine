@@ -153,6 +153,17 @@ export const AuthProvider = ({ children }) => {
     setUser(null);
   };
 
+  const updateUserProfile = (profileUpdates = {}) => {
+    setUser((previousUser) => {
+      const nextUser = {
+        ...(previousUser || {}),
+        ...profileUpdates,
+      };
+      localStorage.setItem('user', JSON.stringify(nextUser));
+      return nextUser;
+    });
+  };
+
   const value = {
     user,
     loginWithPassword,
@@ -162,6 +173,7 @@ export const AuthProvider = ({ children }) => {
     resetPasswordWithOtp,
     register,
     logout,
+    updateUserProfile,
     loading,
     isAuthenticated: !!user,
   };

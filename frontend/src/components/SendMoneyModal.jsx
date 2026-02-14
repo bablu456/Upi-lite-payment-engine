@@ -20,12 +20,14 @@ const SendMoneyModal = ({
   senderUpiId,
   presetReceiverMode = '',
   presetReceiverValue = '',
+  presetAmount = '',
 }) => {
   const [receiverMode, setReceiverMode] = useState('upi');
   const [receiverValue, setReceiverValue] = useState('');
   const [amount, setAmount] = useState('');
   const [pin, setPin] = useState('');
   const [errors, setErrors] = useState(emptyErrors);
+  const [riskChallenge, setRiskChallenge] = useState(null);
   const [isSending, setIsSending] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
 
@@ -39,6 +41,7 @@ const SendMoneyModal = ({
       setAmount('');
       setPin('');
       setErrors(emptyErrors);
+      setRiskChallenge(null);
       setIsSending(false);
       setIsSuccess(false);
       return;
@@ -46,11 +49,16 @@ const SendMoneyModal = ({
 
     const normalizedMode = presetReceiverMode === 'mobile' ? 'mobile' : 'upi';
     const normalizedValue = presetReceiverValue?.trim() || '';
+    const normalizedAmount = String(presetAmount ?? '').trim();
     if (normalizedValue) {
       setReceiverMode(normalizedMode);
       setReceiverValue(normalizedValue);
     }
-  }, [isOpen, presetReceiverMode, presetReceiverValue]);
+
+    if (normalizedAmount) {
+      setAmount(normalizedAmount);
+    }
+  }, [isOpen, presetReceiverMode, presetReceiverValue, presetAmount]);
 
   const validate = () => {
     const nextErrors = { ...emptyErrors };
@@ -74,14 +82,14 @@ const SendMoneyModal = ({
     return !nextErrors.receiver && !nextErrors.amount && !nextErrors.pin;
   };
 
-  const handleSubmit = async (event) => {
-    event.preventDefault();
-    if (!validate()) {
+  const executeTransfer = async (riskAcknowledged = false) => {
+    if (!riskAcknowledged && !validate()) {
       return;
     }
 
     setIsSending(true);
     setErrors(emptyErrors);
+    setRiskChallenge(null);
 
     try {
       await onSend({
@@ -89,6 +97,7 @@ const SendMoneyModal = ({
         receiverMobile: receiverMode === 'mobile' ? receiverValue.trim() : '',
         amount: numericAmount,
         pin: requiresPin ? pin.trim() : '',
+        riskAcknowledged,
       });
 
       setIsSuccess(true);
@@ -96,7 +105,17 @@ const SendMoneyModal = ({
         onClose();
       }, 900);
     } catch (error) {
-      const message = error?.response?.data?.message || error?.response?.data || error?.message;
+      const riskPayload = error?.scamRisk;
+      if (riskPayload?.action === 'CHALLENGE') {
+        setRiskChallenge(riskPayload);
+        setErrors({
+          ...emptyErrors,
+          form: riskPayload.message || 'Suspicious transfer detected. Confirm to continue.',
+        });
+        return;
+      }
+
+      const message = error?.response?.data?.message || error?.response?.data?.errorMessage || error?.response?.data || error?.message;
       setErrors({
         ...emptyErrors,
         form: typeof message === 'string' ? message : 'Transfer failed. Please try again.',
@@ -104,6 +123,11 @@ const SendMoneyModal = ({
     } finally {
       setIsSending(false);
     }
+  };
+
+  const handleSubmit = async (event) => {
+    event.preventDefault();
+    await executeTransfer(false);
   };
 
   return (
@@ -159,6 +183,7 @@ const SendMoneyModal = ({
                       setReceiverMode('upi');
                       setReceiverValue('');
                       setErrors(emptyErrors);
+                      setRiskChallenge(null);
                     }}
                     className={`flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition ${
                       receiverMode === 'upi' ? 'bg-cyan-500/20 text-cyan-100' : 'text-gray-300 hover:bg-white/5'
@@ -172,6 +197,7 @@ const SendMoneyModal = ({
                       setReceiverMode('mobile');
                       setReceiverValue('');
                       setErrors(emptyErrors);
+                      setRiskChallenge(null);
                     }}
                     className={`flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition ${
                       receiverMode === 'mobile' ? 'bg-cyan-500/20 text-cyan-100' : 'text-gray-300 hover:bg-white/5'
@@ -185,7 +211,10 @@ const SendMoneyModal = ({
                   <Input
                     label={receiverMode === 'upi' ? 'Receiver UPI ID' : 'Receiver Mobile'}
                     value={receiverValue}
-                    onChange={(event) => setReceiverValue(event.target.value)}
+                    onChange={(event) => {
+                      setReceiverValue(event.target.value);
+                      setRiskChallenge(null);
+                    }}
                     placeholder={receiverMode === 'upi' ? 'receiver@bank' : '9876543210'}
                     autoComplete="off"
                     error={errors.receiver}
@@ -194,7 +223,10 @@ const SendMoneyModal = ({
                   <Input
                     label="Amount"
                     value={amount}
-                    onChange={(event) => setAmount(event.target.value)}
+                    onChange={(event) => {
+                      setAmount(event.target.value);
+                      setRiskChallenge(null);
+                    }}
                     placeholder="0.00"
                     type="number"
                     min="0"
@@ -206,7 +238,10 @@ const SendMoneyModal = ({
                     <Input
                       label="UPI PIN"
                       value={pin}
-                      onChange={(event) => setPin(event.target.value)}
+                      onChange={(event) => {
+                        setPin(event.target.value);
+                        setRiskChallenge(null);
+                      }}
                       placeholder="4-digit PIN"
                       type="password"
                       maxLength={4}
@@ -220,6 +255,33 @@ const SendMoneyModal = ({
                     <p className="rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-300">
                       {errors.form}
                     </p>
+                  ) : null}
+
+                  {riskChallenge ? (
+                    <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-3 text-sm text-amber-200">
+                      <p className="font-semibold">Scam Shield Warning</p>
+                      {riskChallenge.riskScore !== null ? (
+                        <p className="mt-1 text-xs text-amber-300">Risk score: {riskChallenge.riskScore}</p>
+                      ) : null}
+                      {Array.isArray(riskChallenge.reasons) && riskChallenge.reasons.length > 0 ? (
+                        <ul className="mt-2 list-disc space-y-1 pl-4 text-xs text-amber-100">
+                          {riskChallenge.reasons.map((reason, index) => (
+                            <li key={`${reason}-${index}`}>{reason}</li>
+                          ))}
+                        </ul>
+                      ) : null}
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        className="mt-3 w-full"
+                        disabled={isSending}
+                        onClick={() => {
+                          void executeTransfer(true);
+                        }}
+                      >
+                        Proceed Anyway
+                      </Button>
+                    </div>
                   ) : null}
 
                   <div className="flex gap-3 pt-2">
